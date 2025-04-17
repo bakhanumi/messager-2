@@ -401,6 +401,29 @@
       opacity: 0.3;
     }
     
+    .preview-controls {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 10px;
+      padding: 5px;
+      background-color: #f5f5f5;
+      border-radius: 4px;
+    }
+    
+    .preview-toggle {
+      font-size: 0.8rem;
+      padding: 2px 8px;
+      background-color: var(--secondary-color);
+      border: 1px solid var(--border-color);
+      border-radius: 3px;
+      cursor: pointer;
+    }
+    
+    .preview-toggle.active {
+      background-color: var(--primary-color);
+      color: white;
+    }
+    
     @media (max-width: 1024px) {
       .dashboard {
         grid-template-columns: 1fr;
@@ -447,6 +470,10 @@
         </div>
         
         <div class="tab-content active" id="preview-tab">
+          <div class="preview-controls" id="preview-controls" style="display: none;">
+            <button id="toggle-links" class="preview-toggle">Включить ссылки</button>
+            <span class="preview-info">Ссылки отключены для безопасности</span>
+          </div>
           <div class="preview-tab">
             <div class="empty-state">
               <div class="empty-icon">👆</div>
@@ -522,12 +549,15 @@
       const previewTab = document.getElementById('preview-tab');
       const htmlContent = document.getElementById('html-content');
       const textContent = document.getElementById('text-content');
+      const previewControls = document.getElementById('preview-controls');
+      const toggleLinksBtn = document.getElementById('toggle-links');
       
       // Состояние приложения
       let clients = [];
       let selectedClientId = null;
       let ws = null;
       let reconnectAttempts = 0;
+      let linksEnabled = false;
       
       // Функции для работы с WebSocket
       function connectToServer() {
@@ -740,22 +770,40 @@
         if (!pageData) {
           clearClientData();
           previewTab.innerHTML = `
-            <div class="empty-state">
-              <div class="empty-icon">⏳</div>
-              <p>Ожидание данных от клиента...</p>
+            <div class="preview-controls" id="preview-controls" style="display: none;">
+              <button id="toggle-links" class="preview-toggle">Включить ссылки</button>
+              <span class="preview-info">Ссылки отключены для безопасности</span>
+            </div>
+            <div class="preview-tab">
+              <div class="empty-state">
+                <div class="empty-icon">⏳</div>
+                <p>Ожидание данных от клиента...</p>
+              </div>
             </div>
           `;
           return;
         }
         
-        // Отображаем HTML контент напрямую вместо iframe
+        // Показываем панель управления превью
+        previewControls.style.display = 'flex';
+        
+        // Отображаем HTML контент напрямую
         previewTab.innerHTML = `
+          <div class="preview-controls" id="preview-controls">
+            <button id="toggle-links" class="preview-toggle ${linksEnabled ? 'active' : ''}">
+              ${linksEnabled ? 'Отключить ссылки' : 'Включить ссылки'}
+            </button>
+            <span class="preview-info">${linksEnabled ? 'Ссылки активны' : 'Ссылки отключены для безопасности'}</span>
+          </div>
           <div class="preview-tab">
             <div class="html-preview-container">${pageData.html}</div>
           </div>
         `;
         
-        // Добавляем стили для HTML превью
+        // Восстанавливаем обработчик событий для кнопки
+        document.getElementById('toggle-links').addEventListener('click', toggleLinks);
+        
+        // Добавляем стили для HTML превью с учетом состояния ссылок
         const styleElement = document.createElement('style');
         styleElement.textContent = `
           .html-preview-container {
@@ -764,6 +812,7 @@
             overflow: auto;
             padding: 10px;
             background-color: white;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
           }
           
           .html-preview-container img {
@@ -771,8 +820,23 @@
           }
           
           .html-preview-container a {
-            pointer-events: none;
-            cursor: not-allowed;
+            ${linksEnabled ? '' : 'pointer-events: none; cursor: not-allowed;'}
+            color: #0066cc;
+          }
+          
+          .html-preview-container * {
+            max-width: 100%;
+          }
+          
+          .html-preview-container table {
+            border-collapse: collapse;
+            width: auto;
+          }
+          
+          .html-preview-container table td, 
+          .html-preview-container table th {
+            border: 1px solid #ddd;
+            padding: 8px;
           }
         `;
         document.head.appendChild(styleElement);
@@ -782,12 +846,45 @@
         textContent.textContent = pageData.text;
       }
       
+      // Функция для переключения ссылок
+      function toggleLinks() {
+        linksEnabled = !linksEnabled;
+        
+        // Обновляем кнопку
+        this.textContent = linksEnabled ? 'Отключить ссылки' : 'Включить ссылки';
+        this.classList.toggle('active', linksEnabled);
+        
+        // Обновляем текст статуса
+        const infoText = this.nextElementSibling;
+        if (infoText) {
+          infoText.textContent = linksEnabled ? 'Ссылки активны' : 'Ссылки отключены для безопасности';
+        }
+        
+        // Обновляем стили ссылок
+        const links = document.querySelectorAll('.html-preview-container a');
+        links.forEach(link => {
+          if (linksEnabled) {
+            link.style.pointerEvents = 'auto';
+            link.style.cursor = 'pointer';
+          } else {
+            link.style.pointerEvents = 'none';
+            link.style.cursor = 'not-allowed';
+          }
+        });
+      }
+      
       // Очистка данных клиента
       function clearClientData() {
         previewTab.innerHTML = `
-          <div class="empty-state">
-            <div class="empty-icon">👆</div>
-            <p>Выберите клиента из списка слева для просмотра данных</p>
+          <div class="preview-controls" id="preview-controls" style="display: none;">
+            <button id="toggle-links" class="preview-toggle">Включить ссылки</button>
+            <span class="preview-info">Ссылки отключены для безопасности</span>
+          </div>
+          <div class="preview-tab">
+            <div class="empty-state">
+              <div class="empty-icon">👆</div>
+              <p>Выберите клиента из списка слева для просмотра данных</p>
+            </div>
           </div>
         `;
         htmlContent.textContent = '';
@@ -911,6 +1008,11 @@
       
       // Подключаемся к серверу при загрузке страницы
       connectToServer();
+      
+      // Добавляем начальный обработчик для кнопки переключения ссылок
+      if (toggleLinksBtn) {
+        toggleLinksBtn.addEventListener('click', toggleLinks);
+      }
     });
   </script>
   
