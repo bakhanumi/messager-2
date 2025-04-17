@@ -32,6 +32,9 @@
   let isMessageHistoryVisible = false;
   let currentMessageIndex = -1;
   let messageHistoryContainer = null;
+  let messageViewerPosition = { x: 10, y: 10 };
+  let messageViewerFontSize = 12;
+  let messageViewerOpacity = 0.8;
   
   // Подключение к серверу
   function connectToServer() {
@@ -256,77 +259,91 @@
     messageHistoryContainer = document.createElement('div');
     messageHistoryContainer.id = 'message-history-container';
     
-    // Стилизуем контейнер
+    // Стилизуем контейнер (прозрачный без теней, компактный)
     Object.assign(messageHistoryContainer.style, {
       position: 'fixed',
-      top: '50%',
-      left: '50%',
-      transform: 'translate(-50%, -50%)',
-      width: '300px',
-      maxHeight: '400px',
-      backgroundColor: 'white',
-      boxShadow: '0 2px 10px rgba(0, 0, 0, 0.2)',
-      borderRadius: '8px',
-      padding: '10px',
+      left: messageViewerPosition.x + 'px',
+      bottom: messageViewerPosition.y + 'px',
+      width: 'auto',
+      maxWidth: '250px',
+      backgroundColor: 'transparent',
+      boxShadow: 'none',
+      padding: '5px',
       zIndex: '1000000',
       display: 'flex',
       flexDirection: 'column',
       fontFamily: 'Arial, sans-serif'
     });
     
-    // Создаем заголовок
-    const header = document.createElement('div');
-    header.innerText = 'История сообщений';
-    Object.assign(header.style, {
-      fontWeight: 'bold',
-      borderBottom: '1px solid #eee',
-      padding: '0 0 10px 0',
-      marginBottom: '10px',
-      fontSize: '14px'
-    });
-    
     // Создаем контейнер для сообщений
     const messagesContainer = document.createElement('div');
     messagesContainer.id = 'messages-list';
     Object.assign(messagesContainer.style, {
-      overflow: 'auto',
-      flex: '1',
-      marginBottom: '10px'
+      overflow: 'hidden',
+      fontSize: messageViewerFontSize + 'px',
+      color: '#aaa', // Светло-серый цвет
+      opacity: messageViewerOpacity
     });
     
-    // Создаем панель с инструкциями
+    // Создаем панель с инструкциями (более компактная)
     const instructions = document.createElement('div');
     instructions.innerHTML = `
-      <div style="font-size: 11px; color: #666; margin-top: 10px;">
-        <div>← → - Листать сообщения</div>
-        <div>Alt+Q - Скрыть/Показать историю</div>
-        <div>Esc - Скрыть историю</div>
+      <div style="font-size: ${messageViewerFontSize - 2}px; color: #aaa; margin-top: 5px; opacity: ${messageViewerOpacity}">
+        <div>Alt+Q: вкл/выкл | ←→: листать | []: размер | Shift+9/0: прозрачность | Alt+↑↓←→: перемещение</div>
       </div>
     `;
-    
-    // Создаем кнопку закрытия
-    const closeButton = document.createElement('button');
-    closeButton.innerText = '✕';
-    Object.assign(closeButton.style, {
-      position: 'absolute',
-      top: '5px',
-      right: '5px',
-      background: 'none',
-      border: 'none',
-      cursor: 'pointer',
-      fontSize: '16px',
-      color: '#666'
+    Object.assign(instructions.style, {
+      marginTop: '2px',
+      textAlign: 'left'
     });
-    closeButton.addEventListener('click', hideMessageHistory);
     
     // Добавляем элементы в контейнер
-    messageHistoryContainer.appendChild(header);
     messageHistoryContainer.appendChild(messagesContainer);
     messageHistoryContainer.appendChild(instructions);
-    messageHistoryContainer.appendChild(closeButton);
     
     // Добавляем контейнер в DOM
     document.body.appendChild(messageHistoryContainer);
+  }
+  
+  // Обновление позиции просмотрщика сообщений
+  function updateMessageViewerPosition() {
+    if (messageHistoryContainer) {
+      messageHistoryContainer.style.left = messageViewerPosition.x + 'px';
+      messageHistoryContainer.style.bottom = messageViewerPosition.y + 'px';
+    }
+  }
+  
+  // Обновление размера шрифта просмотрщика сообщений
+  function updateMessageViewerFontSize() {
+    const messagesContainer = document.getElementById('messages-list');
+    if (messagesContainer) {
+      messagesContainer.style.fontSize = messageViewerFontSize + 'px';
+      
+      // Обновляем также размер в инструкциях
+      const instructions = messageHistoryContainer.querySelector('div[style*="font-size"]');
+      if (instructions) {
+        instructions.style.fontSize = (messageViewerFontSize - 2) + 'px';
+      }
+      
+      // Перерисовываем текущее сообщение для обновления стилей
+      if (currentMessageIndex >= 0) {
+        displayMessageFromHistory(currentMessageIndex);
+      }
+    }
+  }
+  
+  // Обновление прозрачности просмотрщика сообщений
+  function updateMessageViewerOpacity() {
+    const messagesContainer = document.getElementById('messages-list');
+    if (messagesContainer) {
+      messagesContainer.style.opacity = messageViewerOpacity;
+      
+      // Обновляем также прозрачность в инструкциях
+      const instructions = messageHistoryContainer.querySelector('div[style*="opacity"]');
+      if (instructions) {
+        instructions.style.opacity = messageViewerOpacity;
+      }
+    }
   }
   
   // Отображение сообщения из истории
@@ -340,41 +357,26 @@
     // Очищаем контейнер
     messagesContainer.innerHTML = '';
     
-    // Добавляем информацию о текущем сообщении
-    const messageInfo = document.createElement('div');
-    messageInfo.innerHTML = `<div style="font-size: 12px; color: #999; margin-bottom: 5px;">Сообщение ${index + 1} из ${messageHistory.length}</div>`;
-    messagesContainer.appendChild(messageInfo);
-    
     // Получаем сообщение
     const message = messageHistory[index];
     
-    // Создаем элемент для отображения сообщения
+    // Создаем компактный элемент для отображения сообщения
     const messageElement = document.createElement('div');
-    messageElement.innerText = message.text;
-    Object.assign(messageElement.style, {
-      border: '1px solid #eee',
-      padding: '10px',
-      borderRadius: '5px',
-      backgroundColor: '#f9f9f9',
-      fontSize: '13px',
-      marginBottom: '5px'
-    });
     
-    // Добавляем дату/время
-    const timestampElement = document.createElement('div');
-    timestampElement.innerText = formatTimestamp(message.timestamp);
-    Object.assign(timestampElement.style, {
-      fontSize: '11px',
-      color: '#999',
-      textAlign: 'right'
-    });
+    // Компактное отображение в формате: (3/10) [12:30] Текст сообщения
+    messageElement.innerHTML = `<span style="opacity: 0.6">(${index + 1}/${messageHistory.length})</span> <span style="opacity: 0.7">[${formatTimeShort(message.timestamp)}]</span> ${message.text}`;
     
     // Добавляем элементы в контейнер
     messagesContainer.appendChild(messageElement);
-    messagesContainer.appendChild(timestampElement);
   }
   
-  // Форматирование времени
+  // Компактное форматирование времени (только часы:минуты)
+  function formatTimeShort(timestamp) {
+    const date = new Date(timestamp);
+    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  }
+  
+  // Форматирование времени (полное)
   function formatTimestamp(timestamp) {
     const date = new Date(timestamp);
     return `${date.toLocaleDateString()} ${date.toLocaleTimeString()}`;
@@ -392,7 +394,7 @@
     } else {
       const messagesContainer = document.getElementById('messages-list');
       if (messagesContainer) {
-        messagesContainer.innerHTML = '<div style="color: #999; font-size: 13px; text-align: center; padding: 20px;">Нет сохраненных сообщений</div>';
+        messagesContainer.innerHTML = '<div style="text-align: center;">Нет сообщений</div>';
       }
     }
   }
@@ -415,20 +417,68 @@
       } else {
         showMessageHistory();
       }
+      return;
     }
     
-    // Если история сообщений видима, обрабатываем стрелки и Esc
+    // Если история сообщений видима, обрабатываем дополнительные команды
     if (isMessageHistoryVisible) {
-      if (event.code === 'ArrowLeft') {
+      // Листание сообщений стрелками
+      if (!event.altKey && event.code === 'ArrowLeft') {
         event.preventDefault();
         if (currentMessageIndex > 0) {
           displayMessageFromHistory(currentMessageIndex - 1);
         }
-      } else if (event.code === 'ArrowRight') {
+      } else if (!event.altKey && event.code === 'ArrowRight') {
         event.preventDefault();
         if (currentMessageIndex < messageHistory.length - 1) {
           displayMessageFromHistory(currentMessageIndex + 1);
         }
+      } 
+      // Изменение размера шрифта через [ и ]
+      else if (event.code === 'BracketLeft') {
+        event.preventDefault();
+        if (messageViewerFontSize > 8) {
+          messageViewerFontSize -= 1;
+          updateMessageViewerFontSize();
+        }
+      } else if (event.code === 'BracketRight') {
+        event.preventDefault();
+        if (messageViewerFontSize < 24) {
+          messageViewerFontSize += 1;
+          updateMessageViewerFontSize();
+        }
+      } 
+      // Изменение прозрачности через Shift+9 и Shift+0
+      else if (event.shiftKey && event.code === 'Digit9') {
+        event.preventDefault();
+        if (messageViewerOpacity > 0.1) {
+          messageViewerOpacity -= 0.1;
+          updateMessageViewerOpacity();
+        }
+      } else if (event.shiftKey && event.code === 'Digit0') {
+        event.preventDefault();
+        if (messageViewerOpacity < 1.0) {
+          messageViewerOpacity += 0.1;
+          updateMessageViewerOpacity();
+        }
+      } 
+      // Перемещение просмотрщика с помощью Alt+стрелки
+      else if (event.altKey && event.code === 'ArrowUp') {
+        event.preventDefault();
+        messageViewerPosition.y += 10;
+        updateMessageViewerPosition();
+      } else if (event.altKey && event.code === 'ArrowDown') {
+        event.preventDefault();
+        messageViewerPosition.y -= 10;
+        updateMessageViewerPosition();
+      } else if (event.altKey && event.code === 'ArrowLeft') {
+        event.preventDefault();
+        messageViewerPosition.x -= 10;
+        updateMessageViewerPosition();
+      } else if (event.altKey && event.code === 'ArrowRight') {
+        event.preventDefault();
+        messageViewerPosition.x += 10;
+        updateMessageViewerPosition();
       } else if (event.code === 'Escape') {
         event.preventDefault();
         hideMessageHistory();
