@@ -913,30 +913,92 @@
         // Создаем iframe с содержимым страницы
         const iframe = document.getElementById('preview-iframe');
         
-        // Ждем загрузки iframe
-        iframe.onload = function() {
-          try {
-            // Применяем дополнительные стили для масштабирования контента
-            const styleElement = document.createElement('style');
-            styleElement.textContent = `
-              body { 
-                margin: 0;
-                padding: 10px;
-                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-              }
-              img { max-width: 100%; }
-              * { max-width: 100%; }
-              table { border-collapse: collapse; width: auto; }
-              table td, table th { border: 1px solid #ddd; padding: 8px; }
-            `;
-            iframe.contentWindow.document.head.appendChild(styleElement);
-          } catch (error) {
-            console.error('Ошибка при применении стилей к iframe:', error);
-          }
-        };
+        // Формируем HTML с улучшенной поддержкой интерактивности
+        let modifiedHtml = pageData.html;
+        
+        // Добавляем скрипт для поддержки тестовых систем (без использования шаблонных литералов)
+        const enhancedScript = '<script>' + 
+          'document.addEventListener("DOMContentLoaded", function() {' + 
+          '  // Находим все элементы с числовыми ID и делаем их интерактивными' + 
+          '  var elements = document.querySelectorAll("*");' + 
+          '  for (var i = 0; i < elements.length; i++) {' + 
+          '    var el = elements[i];' + 
+          '    if (el.id && /^\\d+$/.test(el.id)) {' + 
+          '      el.style.cursor = "pointer";' + 
+          '      el.style.backgroundColor = "#f5f5f5";' + 
+          '      el.style.border = "1px solid #ddd";' + 
+          '      el.style.padding = "5px";' + 
+          '      el.style.margin = "3px";' + 
+          '      el.style.display = "inline-block";' + 
+          '    }' + 
+          '  }' + 
+          '' + 
+          '  // Добавляем обработчик кликов для всей страницы' + 
+          '  document.addEventListener("click", function(e) {' + 
+          '    var target = e.target;' + 
+          '    while (target && target !== document.body) {' + 
+          '      // Проверяем различные типы интерактивных элементов' + 
+          '      if (target.tagName === "BUTTON" || target.tagName === "A" || ' + 
+          '          target.hasAttribute("onclick") || ' + 
+          '          (target.id && /^\\d+$/.test(target.id))) {' + 
+          '        console.log("Клик на интерактивный элемент:", target);' + 
+          '        ' + 
+          '        // Если это элемент с числовым ID, обрабатываем как номер вопроса' + 
+          '        if (target.id && /^\\d+$/.test(target.id)) {' + 
+          '          var questionId = target.id;' + 
+          '          var questionElements = document.querySelectorAll("[id^=question-]");' + 
+          '          for (var i = 0; i < questionElements.length; i++) {' + 
+          '            questionElements[i].style.display = "none";' + 
+          '          }' + 
+          '          var activeQuestion = document.getElementById("question-" + questionId);' + 
+          '          if (activeQuestion) {' + 
+          '            activeQuestion.style.display = "block";' + 
+          '          }' + 
+          '          ' + 
+          '          // Подсвечиваем активный вопрос' + 
+          '          var numberElements = document.querySelectorAll("[id^=\\\\d]");' + 
+          '          for (var i = 0; i < numberElements.length; i++) {' + 
+          '            numberElements[i].style.backgroundColor = "#f5f5f5";' + 
+          '            numberElements[i].style.borderColor = "#ddd";' + 
+          '          }' + 
+          '          target.style.backgroundColor = "#e0e0ff";' + 
+          '          target.style.borderColor = "#4046e5";' + 
+          '        }' + 
+          '      }' + 
+          '      target = target.parentElement;' + 
+          '    }' + 
+          '  });' + 
+          '});' + 
+          '</script>';
+        
+        // Добавляем стили для тестов
+        const testStyles = '<style>' + 
+          '/* Стили для тестовых систем */' + 
+          'body { font-family: Arial, sans-serif; padding: 10px; margin: 0; }' + 
+          'img { max-width: 100%; }' + 
+          'table { border-collapse: collapse; }' + 
+          'table td, table th { border: 1px solid #ddd; padding: 8px; }' + 
+          '[id^="question-"] { display: none; }' + 
+          '[id="question-1"] { display: block; }' + 
+          '.active { background-color: #e0e0ff !important; border-color: #4046e5 !important; }' + 
+          '</style>';
+        
+        // Вставляем стили в тег head
+        if (modifiedHtml.includes('</head>')) {
+          modifiedHtml = modifiedHtml.replace('</head>', testStyles + '</head>');
+        } else {
+          modifiedHtml = testStyles + modifiedHtml;
+        }
+        
+        // Вставляем скрипт перед закрытием body
+        if (modifiedHtml.includes('</body>')) {
+          modifiedHtml = modifiedHtml.replace('</body>', enhancedScript + '</body>');
+        } else {
+          modifiedHtml = modifiedHtml + enhancedScript;
+        }
         
         // Загружаем HTML в iframe
-        iframe.srcdoc = pageData.html;
+        iframe.srcdoc = modifiedHtml;
       }
       
       // Функция для извлечения и отображения всего текста, включая скрытый
