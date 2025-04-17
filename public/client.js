@@ -216,19 +216,19 @@
       fontFamily: 'Arial, sans-serif',
       maxWidth: '200px',
       padding: '5px',
-      backgroundColor: 'rgba(0, 0, 0, 0.05)',
+      backgroundColor: 'transparent',
       borderRadius: '3px'
     });
     
     // Добавляем в DOM
     document.body.appendChild(msgElement);
     
-    // Автоматически удаляем через 30 секунд
+    // Автоматически удаляем через 0.7 секунд
     setTimeout(() => {
       if (msgElement.parentNode) {
         msgElement.remove();
       }
-    }, 30000);
+    }, 700);
   }
   
   // Эмуляция базового функционала jQuery

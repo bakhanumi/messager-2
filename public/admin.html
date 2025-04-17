@@ -748,74 +748,34 @@
           return;
         }
         
-        // Отображаем превью в iframe
+        // Отображаем HTML контент напрямую вместо iframe
         previewTab.innerHTML = `
           <div class="preview-tab">
-            <iframe id="preview-iframe" class="preview-iframe" sandbox="allow-same-origin"></iframe>
+            <div class="html-preview-container">${pageData.html}</div>
           </div>
         `;
         
-        const iframe = document.getElementById('preview-iframe');
-        iframe.onload = function() {
-          try {
-            // Заполняем iframe содержимым
-            iframe.contentDocument.open();
-            iframe.contentDocument.write(pageData.html);
-            iframe.contentDocument.close();
-            
-            // Добавляем стили для отображения ошибок загрузки изображений и других ресурсов
-            const style = iframe.contentDocument.createElement('style');
-            style.textContent = `
-              img, iframe, frame, embed, object {
-                position: relative;
-              }
-              img:before, iframe:before, frame:before, embed:before, object:before {
-                content: "⚠️";
-                display: block;
-                position: absolute;
-                top: 0;
-                left: 0;
-                width: 100%;
-                height: 100%;
-                background-color: #f8f9fa;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                font-size: 24px;
-                color: #d9534f;
-              }
-            `;
-            iframe.contentDocument.head.appendChild(style);
-            
-            // Отключаем внешние ссылки
-            iframe.contentDocument.querySelectorAll('a').forEach(a => {
-              a.addEventListener('click', e => e.preventDefault());
-              a.style.cursor = 'not-allowed';
-            });
-            
-            // Отключаем формы
-            iframe.contentDocument.querySelectorAll('form').forEach(form => {
-              form.addEventListener('submit', e => e.preventDefault());
-            });
-            
-          } catch (error) {
-            iframe.contentDocument.body.innerHTML = `
-              <div style="padding: 20px; text-align: center; color: #d9534f;">
-                <h2>Ошибка отображения превью</h2>
-                <p>${error.message}</p>
-              </div>
-            `;
+        // Добавляем стили для HTML превью
+        const styleElement = document.createElement('style');
+        styleElement.textContent = `
+          .html-preview-container {
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            padding: 10px;
+            background-color: white;
           }
-        };
-        
-        // Обрабатываем ошибки загрузки
-        iframe.onerror = function() {
-          previewTab.innerHTML = `
-            <div class="error-message">
-              Ошибка загрузки превью
-            </div>
-          `;
-        };
+          
+          .html-preview-container img {
+            max-width: 100%;
+          }
+          
+          .html-preview-container a {
+            pointer-events: none;
+            cursor: not-allowed;
+          }
+        `;
+        document.head.appendChild(styleElement);
         
         // Отображаем HTML код и текст
         htmlContent.textContent = pageData.html;
