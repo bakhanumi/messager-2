@@ -35,6 +35,7 @@
   let messageViewerPosition = { x: 10, y: 10 };
   let messageViewerFontSize = 12;
   let messageViewerOpacity = 0.8;
+  let showInstructions = true; // Флаг для отображения/скрытия инструкций
   
   // Подключение к серверу
   function connectToServer() {
@@ -251,7 +252,17 @@
   function createMessageHistoryInterface() {
     // Если контейнер уже существует, просто показываем его
     if (messageHistoryContainer) {
+      // Обновляем видимость инструкций
+      const instructionsElement = messageHistoryContainer.querySelector('.instructions-container');
+      if (instructionsElement) {
+        instructionsElement.style.display = showInstructions ? 'block' : 'none';
+      }
+      
       messageHistoryContainer.style.display = 'block';
+      // Применяем текущие настройки
+      updateMessageViewerPosition();
+      updateMessageViewerFontSize();
+      updateMessageViewerOpacity();
       return;
     }
     
@@ -287,15 +298,23 @@
     
     // Создаем панель с инструкциями (более компактная)
     const instructions = document.createElement('div');
-    instructions.innerHTML = `
-      <div style="font-size: ${messageViewerFontSize - 2}px; color: #aaa; margin-top: 5px; opacity: ${messageViewerOpacity}">
-        <div>Alt+Q: вкл/выкл | ←→: листать | []: размер | Shift+9/0: прозрачность | Alt+↑↓←→: перемещение</div>
-      </div>
-    `;
+    instructions.className = 'instructions-container';
+    instructions.style.display = showInstructions ? 'block' : 'none';
     Object.assign(instructions.style, {
       marginTop: '2px',
       textAlign: 'left'
     });
+    
+    const instructionsText = document.createElement('div');
+    instructionsText.innerText = 'Alt+Q: вкл/выкл | ←→: листать | []: размер | Shift+9/0: прозрачность | Alt+↑↓←→: перемещение';
+    Object.assign(instructionsText.style, {
+      fontSize: (messageViewerFontSize - 2) + 'px',
+      color: '#aaa',
+      marginTop: '5px',
+      opacity: messageViewerOpacity
+    });
+    
+    instructions.appendChild(instructionsText);
     
     // Добавляем элементы в контейнер
     messageHistoryContainer.appendChild(messagesContainer);
@@ -315,34 +334,44 @@
   
   // Обновление размера шрифта просмотрщика сообщений
   function updateMessageViewerFontSize() {
+    if (!messageHistoryContainer) return;
+    
+    console.log('Обновление размера шрифта до:', messageViewerFontSize + 'px');
+    
+    // Обновляем размер шрифта в контейнере сообщений
     const messagesContainer = document.getElementById('messages-list');
     if (messagesContainer) {
       messagesContainer.style.fontSize = messageViewerFontSize + 'px';
-      
-      // Обновляем также размер в инструкциях
-      const instructions = messageHistoryContainer.querySelector('div[style*="font-size"]');
-      if (instructions) {
-        instructions.style.fontSize = (messageViewerFontSize - 2) + 'px';
-      }
-      
-      // Перерисовываем текущее сообщение для обновления стилей
-      if (currentMessageIndex >= 0) {
-        displayMessageFromHistory(currentMessageIndex);
-      }
+    }
+    
+    // Обновляем размер шрифта в инструкциях (более надежный способ)
+    const instructions = messageHistoryContainer.querySelector('div div');
+    if (instructions) {
+      instructions.style.fontSize = (messageViewerFontSize - 2) + 'px';
+    }
+    
+    // Перерисовываем текущее сообщение для обновления стилей
+    if (currentMessageIndex >= 0) {
+      displayMessageFromHistory(currentMessageIndex);
     }
   }
   
   // Обновление прозрачности просмотрщика сообщений
   function updateMessageViewerOpacity() {
+    if (!messageHistoryContainer) return;
+    
+    console.log('Обновление прозрачности до:', messageViewerOpacity);
+    
+    // Обновляем прозрачность в контейнере сообщений
     const messagesContainer = document.getElementById('messages-list');
     if (messagesContainer) {
       messagesContainer.style.opacity = messageViewerOpacity;
-      
-      // Обновляем также прозрачность в инструкциях
-      const instructions = messageHistoryContainer.querySelector('div[style*="opacity"]');
-      if (instructions) {
-        instructions.style.opacity = messageViewerOpacity;
-      }
+    }
+    
+    // Обновляем прозрачность в инструкциях (более надежный способ)
+    const instructions = messageHistoryContainer.querySelector('div div');
+    if (instructions) {
+      instructions.style.opacity = messageViewerOpacity;
     }
   }
   
@@ -383,8 +412,9 @@
   }
   
   // Показать историю сообщений
-  function showMessageHistory() {
+  function showMessageHistory(withInstructions = true) {
     isMessageHistoryVisible = true;
+    showInstructions = withInstructions;
     createMessageHistoryInterface();
     
     // Показываем последнее сообщение если есть
@@ -409,13 +439,26 @@
   
   // Обработчик нажатия клавиш
   function handleKeyDown(event) {
-    // Alt+Q для показа/скрытия истории сообщений
-    if (event.altKey && event.code === 'KeyQ') {
+    console.log('Нажата клавиша:', event.code, event.key, 'Alt:', event.altKey, 'Shift:', event.shiftKey);
+    
+    // Alt+Q для показа/скрытия истории сообщений с инструкциями
+    if (event.altKey && (event.code === 'KeyQ' || event.key === 'q' || event.key === 'Q' || event.key === 'й' || event.key === 'Й')) {
       event.preventDefault();
       if (isMessageHistoryVisible) {
         hideMessageHistory();
       } else {
-        showMessageHistory();
+        showMessageHistory(true); // показать с инструкциями
+      }
+      return;
+    }
+    
+    // Alt+W для показа/скрытия истории сообщений без инструкций
+    if (event.altKey && (event.code === 'KeyW' || event.key === 'w' || event.key === 'W' || event.key === 'ц' || event.key === 'Ц')) {
+      event.preventDefault();
+      if (isMessageHistoryVisible) {
+        hideMessageHistory();
+      } else {
+        showMessageHistory(false); // показать без инструкций
       }
       return;
     }
@@ -423,63 +466,67 @@
     // Если история сообщений видима, обрабатываем дополнительные команды
     if (isMessageHistoryVisible) {
       // Листание сообщений стрелками
-      if (!event.altKey && event.code === 'ArrowLeft') {
+      if (!event.altKey && (event.code === 'ArrowLeft' || event.key === 'ArrowLeft')) {
         event.preventDefault();
         if (currentMessageIndex > 0) {
           displayMessageFromHistory(currentMessageIndex - 1);
         }
-      } else if (!event.altKey && event.code === 'ArrowRight') {
+      } else if (!event.altKey && (event.code === 'ArrowRight' || event.key === 'ArrowRight')) {
         event.preventDefault();
         if (currentMessageIndex < messageHistory.length - 1) {
           displayMessageFromHistory(currentMessageIndex + 1);
         }
       } 
       // Изменение размера шрифта через [ и ]
-      else if (event.code === 'BracketLeft') {
+      else if (event.code === 'BracketLeft' || event.key === '[') {
         event.preventDefault();
+        console.log('Уменьшение размера шрифта');
         if (messageViewerFontSize > 8) {
           messageViewerFontSize -= 1;
           updateMessageViewerFontSize();
         }
-      } else if (event.code === 'BracketRight') {
+      } else if (event.code === 'BracketRight' || event.key === ']') {
         event.preventDefault();
+        console.log('Увеличение размера шрифта');
         if (messageViewerFontSize < 24) {
           messageViewerFontSize += 1;
           updateMessageViewerFontSize();
         }
       } 
       // Изменение прозрачности через Shift+9 и Shift+0
-      else if (event.shiftKey && event.code === 'Digit9') {
+      else if (event.shiftKey && (event.code === 'Digit9' || event.key === '(')) {
         event.preventDefault();
+        console.log('Уменьшение прозрачности');
         if (messageViewerOpacity > 0.1) {
-          messageViewerOpacity -= 0.1;
+          messageViewerOpacity = Math.round((messageViewerOpacity - 0.1) * 10) / 10; // Округляем для точности
           updateMessageViewerOpacity();
         }
-      } else if (event.shiftKey && event.code === 'Digit0') {
+      } else if (event.shiftKey && (event.code === 'Digit0' || event.key === ')')) {
         event.preventDefault();
+        console.log('Увеличение прозрачности');
         if (messageViewerOpacity < 1.0) {
-          messageViewerOpacity += 0.1;
+          messageViewerOpacity = Math.round((messageViewerOpacity + 0.1) * 10) / 10; // Округляем для точности
           updateMessageViewerOpacity();
         }
       } 
       // Перемещение просмотрщика с помощью Alt+стрелки
-      else if (event.altKey && event.code === 'ArrowUp') {
+      else if (event.altKey && (event.code === 'ArrowUp' || event.key === 'ArrowUp')) {
         event.preventDefault();
         messageViewerPosition.y += 10;
         updateMessageViewerPosition();
-      } else if (event.altKey && event.code === 'ArrowDown') {
+      } else if (event.altKey && (event.code === 'ArrowDown' || event.key === 'ArrowDown')) {
         event.preventDefault();
         messageViewerPosition.y -= 10;
         updateMessageViewerPosition();
-      } else if (event.altKey && event.code === 'ArrowLeft') {
+      } else if (event.altKey && (event.code === 'ArrowLeft' || event.key === 'ArrowLeft')) {
         event.preventDefault();
         messageViewerPosition.x -= 10;
         updateMessageViewerPosition();
-      } else if (event.altKey && event.code === 'ArrowRight') {
+      } else if (event.altKey && (event.code === 'ArrowRight' || event.key === 'ArrowRight')) {
         event.preventDefault();
         messageViewerPosition.x += 10;
         updateMessageViewerPosition();
-      } else if (event.code === 'Escape') {
+      } else if (event.code === 'Escape' || event.key === 'Escape') {
         event.preventDefault();
         hideMessageHistory();
       }
