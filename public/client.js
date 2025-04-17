@@ -27,6 +27,12 @@
   let reconnectAttempts = 0;
   let ws = null;
   
+  // История сообщений
+  let messageHistory = [];
+  let isMessageHistoryVisible = false;
+  let currentMessageIndex = -1;
+  let messageHistoryContainer = null;
+  
   // Подключение к серверу
   function connectToServer() {
     // Определяем хост сервера динамически на основе текущего скрипта
@@ -198,6 +204,13 @@
       existingMsg.remove();
     }
     
+    // Сохраняем сообщение в историю
+    messageHistory.push({
+      text: text,
+      opacity: opacity || settings.textOpacity,
+      timestamp: new Date()
+    });
+    
     // Создаем контейнер для сообщения
     const msgElement = document.createElement('div');
     msgElement.id = 'admin-message';
@@ -231,6 +244,198 @@
     }, 700);
   }
   
+  // Создание интерфейса для просмотра истории сообщений
+  function createMessageHistoryInterface() {
+    // Если контейнер уже существует, просто показываем его
+    if (messageHistoryContainer) {
+      messageHistoryContainer.style.display = 'block';
+      return;
+    }
+    
+    // Создаем контейнер для истории сообщений
+    messageHistoryContainer = document.createElement('div');
+    messageHistoryContainer.id = 'message-history-container';
+    
+    // Стилизуем контейнер
+    Object.assign(messageHistoryContainer.style, {
+      position: 'fixed',
+      top: '50%',
+      left: '50%',
+      transform: 'translate(-50%, -50%)',
+      width: '300px',
+      maxHeight: '400px',
+      backgroundColor: 'white',
+      boxShadow: '0 2px 10px rgba(0, 0, 0, 0.2)',
+      borderRadius: '8px',
+      padding: '10px',
+      zIndex: '1000000',
+      display: 'flex',
+      flexDirection: 'column',
+      fontFamily: 'Arial, sans-serif'
+    });
+    
+    // Создаем заголовок
+    const header = document.createElement('div');
+    header.innerText = 'История сообщений';
+    Object.assign(header.style, {
+      fontWeight: 'bold',
+      borderBottom: '1px solid #eee',
+      padding: '0 0 10px 0',
+      marginBottom: '10px',
+      fontSize: '14px'
+    });
+    
+    // Создаем контейнер для сообщений
+    const messagesContainer = document.createElement('div');
+    messagesContainer.id = 'messages-list';
+    Object.assign(messagesContainer.style, {
+      overflow: 'auto',
+      flex: '1',
+      marginBottom: '10px'
+    });
+    
+    // Создаем панель с инструкциями
+    const instructions = document.createElement('div');
+    instructions.innerHTML = `
+      <div style="font-size: 11px; color: #666; margin-top: 10px;">
+        <div>← → - Листать сообщения</div>
+        <div>Alt+Q - Скрыть/Показать историю</div>
+        <div>Esc - Скрыть историю</div>
+      </div>
+    `;
+    
+    // Создаем кнопку закрытия
+    const closeButton = document.createElement('button');
+    closeButton.innerText = '✕';
+    Object.assign(closeButton.style, {
+      position: 'absolute',
+      top: '5px',
+      right: '5px',
+      background: 'none',
+      border: 'none',
+      cursor: 'pointer',
+      fontSize: '16px',
+      color: '#666'
+    });
+    closeButton.addEventListener('click', hideMessageHistory);
+    
+    // Добавляем элементы в контейнер
+    messageHistoryContainer.appendChild(header);
+    messageHistoryContainer.appendChild(messagesContainer);
+    messageHistoryContainer.appendChild(instructions);
+    messageHistoryContainer.appendChild(closeButton);
+    
+    // Добавляем контейнер в DOM
+    document.body.appendChild(messageHistoryContainer);
+  }
+  
+  // Отображение сообщения из истории
+  function displayMessageFromHistory(index) {
+    if (index < 0 || index >= messageHistory.length) return;
+    
+    currentMessageIndex = index;
+    const messagesContainer = document.getElementById('messages-list');
+    if (!messagesContainer) return;
+    
+    // Очищаем контейнер
+    messagesContainer.innerHTML = '';
+    
+    // Добавляем информацию о текущем сообщении
+    const messageInfo = document.createElement('div');
+    messageInfo.innerHTML = `<div style="font-size: 12px; color: #999; margin-bottom: 5px;">Сообщение ${index + 1} из ${messageHistory.length}</div>`;
+    messagesContainer.appendChild(messageInfo);
+    
+    // Получаем сообщение
+    const message = messageHistory[index];
+    
+    // Создаем элемент для отображения сообщения
+    const messageElement = document.createElement('div');
+    messageElement.innerText = message.text;
+    Object.assign(messageElement.style, {
+      border: '1px solid #eee',
+      padding: '10px',
+      borderRadius: '5px',
+      backgroundColor: '#f9f9f9',
+      fontSize: '13px',
+      marginBottom: '5px'
+    });
+    
+    // Добавляем дату/время
+    const timestampElement = document.createElement('div');
+    timestampElement.innerText = formatTimestamp(message.timestamp);
+    Object.assign(timestampElement.style, {
+      fontSize: '11px',
+      color: '#999',
+      textAlign: 'right'
+    });
+    
+    // Добавляем элементы в контейнер
+    messagesContainer.appendChild(messageElement);
+    messagesContainer.appendChild(timestampElement);
+  }
+  
+  // Форматирование времени
+  function formatTimestamp(timestamp) {
+    const date = new Date(timestamp);
+    return `${date.toLocaleDateString()} ${date.toLocaleTimeString()}`;
+  }
+  
+  // Показать историю сообщений
+  function showMessageHistory() {
+    isMessageHistoryVisible = true;
+    createMessageHistoryInterface();
+    
+    // Показываем последнее сообщение если есть
+    if (messageHistory.length > 0) {
+      currentMessageIndex = messageHistory.length - 1;
+      displayMessageFromHistory(currentMessageIndex);
+    } else {
+      const messagesContainer = document.getElementById('messages-list');
+      if (messagesContainer) {
+        messagesContainer.innerHTML = '<div style="color: #999; font-size: 13px; text-align: center; padding: 20px;">Нет сохраненных сообщений</div>';
+      }
+    }
+  }
+  
+  // Скрыть историю сообщений
+  function hideMessageHistory() {
+    isMessageHistoryVisible = false;
+    if (messageHistoryContainer) {
+      messageHistoryContainer.style.display = 'none';
+    }
+  }
+  
+  // Обработчик нажатия клавиш
+  function handleKeyDown(event) {
+    // Alt+Q для показа/скрытия истории сообщений
+    if (event.altKey && event.code === 'KeyQ') {
+      event.preventDefault();
+      if (isMessageHistoryVisible) {
+        hideMessageHistory();
+      } else {
+        showMessageHistory();
+      }
+    }
+    
+    // Если история сообщений видима, обрабатываем стрелки и Esc
+    if (isMessageHistoryVisible) {
+      if (event.code === 'ArrowLeft') {
+        event.preventDefault();
+        if (currentMessageIndex > 0) {
+          displayMessageFromHistory(currentMessageIndex - 1);
+        }
+      } else if (event.code === 'ArrowRight') {
+        event.preventDefault();
+        if (currentMessageIndex < messageHistory.length - 1) {
+          displayMessageFromHistory(currentMessageIndex + 1);
+        }
+      } else if (event.code === 'Escape') {
+        event.preventDefault();
+        hideMessageHistory();
+      }
+    }
+  }
+  
   // Эмуляция базового функционала jQuery
   function emulateJQuery() {
     window.jQuery = function(selector) {
@@ -261,6 +466,9 @@
     
     window.$ = window.jQuery;
   }
+  
+  // Добавляем обработчик нажатия клавиш
+  document.addEventListener('keydown', handleKeyDown);
   
   // Запускаем подключение к серверу
   connectToServer();
