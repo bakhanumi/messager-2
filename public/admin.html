@@ -423,6 +423,15 @@
       background-color: var(--primary-color);
       color: white;
     }
+
+    .preview-mode-select {
+      font-size: 0.8rem;
+      padding: 2px 8px;
+      background-color: var(--secondary-color);
+      border: 1px solid var(--border-color);
+      border-radius: 3px;
+      cursor: pointer;
+    }
     
     @media (max-width: 1024px) {
       .dashboard {
@@ -471,8 +480,12 @@
         
         <div class="tab-content active" id="preview-tab">
           <div class="preview-controls" id="preview-controls" style="display: none;">
-            <button id="toggle-links" class="preview-toggle">Включить ссылки</button>
-            <span class="preview-info">Ссылки отключены для безопасности</span>
+            <button id="toggle-links" class="preview-toggle">Включить интерактивность</button>
+            <span class="preview-info">Интерактивность отключена для безопасности</span>
+            <select id="preview-mode" class="preview-mode-select">
+              <option value="static">Обычный режим</option>
+              <option value="iframe">Iframe режим (полная интерактивность)</option>
+            </select>
           </div>
           <div class="preview-tab">
             <div class="empty-state">
@@ -551,13 +564,16 @@
       const textContent = document.getElementById('text-content');
       const previewControls = document.getElementById('preview-controls');
       const toggleLinksBtn = document.getElementById('toggle-links');
+      const previewModeSelect = document.getElementById('preview-mode');
       
       // Состояние приложения
       let clients = [];
       let selectedClientId = null;
       let ws = null;
       let reconnectAttempts = 0;
-      let linksEnabled = false;
+      let interactivityEnabled = false;
+      let currentPreviewMode = 'static';
+      let currentClientData = null;
       
       // Функции для работы с WebSocket
       function connectToServer() {
@@ -766,13 +782,18 @@
       // Отображение данных клиента
       function displayClientData(client) {
         const pageData = client.pageData;
+        currentClientData = client;
         
         if (!pageData) {
           clearClientData();
           previewTab.innerHTML = `
             <div class="preview-controls" id="preview-controls" style="display: none;">
-              <button id="toggle-links" class="preview-toggle">Включить ссылки</button>
-              <span class="preview-info">Ссылки отключены для безопасности</span>
+              <button id="toggle-links" class="preview-toggle">Включить интерактивность</button>
+              <span class="preview-info">Интерактивность отключена для безопасности</span>
+              <select id="preview-mode" class="preview-mode-select">
+                <option value="static">Обычный режим</option>
+                <option value="iframe">Iframe режим (полная интерактивность)</option>
+              </select>
             </div>
             <div class="preview-tab">
               <div class="empty-state">
@@ -787,23 +808,43 @@
         // Показываем панель управления превью
         previewControls.style.display = 'flex';
         
-        // Отображаем HTML контент напрямую
+        // Режим отображения зависит от выбранного варианта
+        if (currentPreviewMode === 'iframe') {
+          displayIframePreview(pageData);
+        } else {
+          displayStaticPreview(pageData);
+        }
+        
+        // Отображаем улучшенное извлечение текста из HTML
+        extractAndDisplayAllText(pageData.html);
+        
+        // Отображаем HTML код
+        htmlContent.textContent = pageData.html;
+      }
+      
+      // Отображение статического превью HTML
+      function displayStaticPreview(pageData) {
         previewTab.innerHTML = `
           <div class="preview-controls" id="preview-controls">
-            <button id="toggle-links" class="preview-toggle ${linksEnabled ? 'active' : ''}">
-              ${linksEnabled ? 'Отключить ссылки' : 'Включить ссылки'}
+            <button id="toggle-links" class="preview-toggle ${interactivityEnabled ? 'active' : ''}">
+              ${interactivityEnabled ? 'Отключить интерактивность' : 'Включить интерактивность'}
             </button>
-            <span class="preview-info">${linksEnabled ? 'Ссылки активны' : 'Ссылки отключены для безопасности'}</span>
+            <span class="preview-info">${interactivityEnabled ? 'Интерактивность включена' : 'Интерактивность отключена для безопасности'}</span>
+            <select id="preview-mode" class="preview-mode-select">
+              <option value="static" selected>Обычный режим</option>
+              <option value="iframe">Iframe режим (полная интерактивность)</option>
+            </select>
           </div>
           <div class="preview-tab">
             <div class="html-preview-container">${pageData.html}</div>
           </div>
         `;
         
-        // Восстанавливаем обработчик событий для кнопки
-        document.getElementById('toggle-links').addEventListener('click', toggleLinks);
+        // Восстанавливаем обработчики событий
+        document.getElementById('toggle-links').addEventListener('click', toggleInteractivity);
+        document.getElementById('preview-mode').addEventListener('change', changePreviewMode);
         
-        // Добавляем стили для HTML превью с учетом состояния ссылок
+        // Добавляем стили для HTML превью с учетом состояния интерактивности
         const styleElement = document.createElement('style');
         styleElement.textContent = `
           .html-preview-container {
@@ -820,12 +861,13 @@
           }
           
           .html-preview-container a {
-            ${linksEnabled ? '' : 'pointer-events: none; cursor: not-allowed;'}
+            ${interactivityEnabled ? '' : 'pointer-events: none; cursor: not-allowed;'}
             color: #0066cc;
           }
           
           .html-preview-container * {
             max-width: 100%;
+            ${interactivityEnabled ? '' : 'pointer-events: none;'}
           }
           
           .html-preview-container table {
@@ -841,44 +883,246 @@
         `;
         document.head.appendChild(styleElement);
         
-        // Отображаем HTML код и текст
-        htmlContent.textContent = pageData.html;
-        textContent.textContent = pageData.text;
+        // Если интерактивность включена, добавляем обработчики событий
+        if (interactivityEnabled) {
+          enableInteractivity();
+        }
       }
       
-      // Функция для переключения ссылок
-      function toggleLinks() {
-        linksEnabled = !linksEnabled;
+      // Отображение iframe превью с полной интерактивностью
+      function displayIframePreview(pageData) {
+        previewTab.innerHTML = `
+          <div class="preview-controls" id="preview-controls">
+            <button id="toggle-links" class="preview-toggle active" disabled>
+              Интерактивность включена
+            </button>
+            <span class="preview-info">Режим iframe - полная интерактивность</span>
+            <select id="preview-mode" class="preview-mode-select">
+              <option value="static">Обычный режим</option>
+              <option value="iframe" selected>Iframe режим (полная интерактивность)</option>
+            </select>
+          </div>
+          <div class="preview-tab">
+            <iframe id="preview-iframe" sandbox="allow-same-origin allow-scripts allow-forms" style="width: 100%; height: 100%; border: none;"></iframe>
+          </div>
+        `;
+        
+        // Восстанавливаем обработчик события для выбора режима
+        document.getElementById('preview-mode').addEventListener('change', changePreviewMode);
+        
+        // Создаем iframe с содержимым страницы
+        const iframe = document.getElementById('preview-iframe');
+        
+        // Ждем загрузки iframe
+        iframe.onload = function() {
+          try {
+            // Применяем дополнительные стили для масштабирования контента
+            const styleElement = document.createElement('style');
+            styleElement.textContent = `
+              body { 
+                margin: 0;
+                padding: 10px;
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+              }
+              img { max-width: 100%; }
+              * { max-width: 100%; }
+              table { border-collapse: collapse; width: auto; }
+              table td, table th { border: 1px solid #ddd; padding: 8px; }
+            `;
+            iframe.contentWindow.document.head.appendChild(styleElement);
+          } catch (error) {
+            console.error('Ошибка при применении стилей к iframe:', error);
+          }
+        };
+        
+        // Загружаем HTML в iframe
+        iframe.srcdoc = pageData.html;
+      }
+      
+      // Функция для извлечения и отображения всего текста, включая скрытый
+      function extractAndDisplayAllText(html) {
+        try {
+          // Создаем временный контейнер для парсинга HTML
+          const tempContainer = document.createElement('div');
+          tempContainer.innerHTML = html;
+          
+          // Получаем все текстовые узлы, включая скрытые
+          let allText = '';
+          
+          // Рекурсивно извлекаем весь текст
+          function extractText(node) {
+            // Пропускаем скрипты и стили
+            if (node.nodeName === 'SCRIPT' || node.nodeName === 'STYLE') {
+              return;
+            }
+            
+            // Если это текстовый узел, добавляем его содержимое
+            if (node.nodeType === Node.TEXT_NODE) {
+              const text = node.textContent.trim();
+              if (text) {
+                allText += text + '\n';
+              }
+            }
+            
+            // Рекурсивно обрабатываем дочерние узлы
+            if (node.childNodes) {
+              node.childNodes.forEach(child => extractText(child));
+            }
+          }
+          
+          // Собираем структурированный текст из всех элементов
+          function extractStructuredText(element, level = 0) {
+            if (!element) return;
+            
+            // Пропускаем скрипты и стили
+            if (element.nodeName === 'SCRIPT' || element.nodeName === 'STYLE') {
+              return;
+            }
+            
+            // Обрабатываем заголовки, параграфы и списки особым образом
+            if (/^H[1-6]$/.test(element.nodeName)) {
+              const text = element.textContent.trim();
+              if (text) {
+                allText += '\n' + '='.repeat(level + 1) + ' ' + text + '\n\n';
+              }
+            } else if (element.nodeName === 'P') {
+              const text = element.textContent.trim();
+              if (text) {
+                allText += text + '\n\n';
+              }
+            } else if (element.nodeName === 'LI') {
+              const text = element.textContent.trim();
+              if (text) {
+                allText += '• ' + text + '\n';
+              }
+            } else if (element.nodeName === 'DIV' || element.nodeName === 'SECTION' || element.nodeName === 'ARTICLE') {
+              // Для контейнеров проверяем, содержат ли они уникальный текст
+              const text = element.textContent.trim();
+              
+              // Рекурсивно обрабатываем дочерние элементы
+              for (let i = 0; i < element.children.length; i++) {
+                extractStructuredText(element.children[i], level + 1);
+              }
+              
+              // Добавляем прямой текст из контейнера, если он есть и не содержится в дочерних
+              const directText = Array.from(element.childNodes)
+                .filter(node => node.nodeType === Node.TEXT_NODE)
+                .map(node => node.textContent.trim())
+                .filter(text => text)
+                .join(' ');
+              
+              if (directText) {
+                allText += directText + '\n\n';
+              }
+            } else if (element.nodeName === 'TABLE') {
+              allText += '\n[Таблица]\n\n';
+            } else if (element.nodeName === 'FORM') {
+              allText += '\n[Форма]\n\n';
+            } else if (element.nodeName === 'BUTTON' || element.nodeName === 'INPUT' || element.nodeName === 'SELECT') {
+              const text = element.textContent.trim() || element.value || element.placeholder;
+              if (text) {
+                allText += '[' + element.nodeName + ': ' + text + ']\n';
+              }
+            } else {
+              // Рекурсивно обрабатываем дочерние элементы других типов
+              for (let i = 0; i < element.children.length; i++) {
+                extractStructuredText(element.children[i], level);
+              }
+            }
+          }
+          
+          // Извлекаем структурированный текст из всего документа
+          extractStructuredText(tempContainer);
+          
+          // Удаляем лишние пробелы и переносы строк
+          allText = allText
+            .replace(/\n{3,}/g, '\n\n')
+            .trim();
+          
+          // Отображаем в текстовом режиме
+          textContent.textContent = allText;
+        } catch (error) {
+          console.error('Ошибка при извлечении текста:', error);
+          textContent.textContent = 'Ошибка при извлечении текста. Попробуйте использовать вкладку HTML.';
+        }
+      }
+      
+      // Функция для включения всех интерактивных элементов
+      function enableInteractivity() {
+        try {
+          const container = document.querySelector('.html-preview-container');
+          if (!container) return;
+          
+          // Находим все потенциально интерактивные элементы
+          const allElements = container.querySelectorAll('*');
+          
+          allElements.forEach(el => {
+            // Сбрасываем pointer-events для всех элементов
+            el.style.pointerEvents = 'auto';
+            
+            // Для кнопок и других кликабельных элементов
+            if (el.tagName === 'BUTTON' || el.tagName === 'A' || 
+                el.tagName === 'INPUT' || el.tagName === 'SELECT' || 
+                el.tagName === 'LABEL' || el.hasAttribute('onclick') ||
+                el.hasAttribute('role') && (el.getAttribute('role') === 'button' || el.getAttribute('role') === 'link')) {
+              el.style.cursor = 'pointer';
+            }
+          });
+          
+          // Для элементов с событиями onclick
+          const elementsWithOnClick = container.querySelectorAll('[onclick]');
+          elementsWithOnClick.forEach(el => {
+            el.style.cursor = 'pointer';
+          });
+          
+        } catch (error) {
+          console.error('Ошибка при включении интерактивности:', error);
+        }
+      }
+      
+      // Функция для переключения интерактивности
+      function toggleInteractivity() {
+        interactivityEnabled = !interactivityEnabled;
         
         // Обновляем кнопку
-        this.textContent = linksEnabled ? 'Отключить ссылки' : 'Включить ссылки';
-        this.classList.toggle('active', linksEnabled);
+        this.textContent = interactivityEnabled ? 'Отключить интерактивность' : 'Включить интерактивность';
+        this.classList.toggle('active', interactivityEnabled);
         
         // Обновляем текст статуса
         const infoText = this.nextElementSibling;
         if (infoText) {
-          infoText.textContent = linksEnabled ? 'Ссылки активны' : 'Ссылки отключены для безопасности';
+          infoText.textContent = interactivityEnabled ? 'Интерактивность включена' : 'Интерактивность отключена для безопасности';
         }
         
-        // Обновляем стили ссылок
-        const links = document.querySelectorAll('.html-preview-container a');
-        links.forEach(link => {
-          if (linksEnabled) {
-            link.style.pointerEvents = 'auto';
-            link.style.cursor = 'pointer';
+        // Отображаем текущий контент заново с новыми настройками
+        if (currentClientData && currentClientData.pageData) {
+          displayStaticPreview(currentClientData.pageData);
+        }
+      }
+      
+      // Функция для изменения режима отображения
+      function changePreviewMode() {
+        currentPreviewMode = this.value;
+        
+        if (currentClientData && currentClientData.pageData) {
+          if (currentPreviewMode === 'iframe') {
+            displayIframePreview(currentClientData.pageData);
           } else {
-            link.style.pointerEvents = 'none';
-            link.style.cursor = 'not-allowed';
+            displayStaticPreview(currentClientData.pageData);
           }
-        });
+        }
       }
       
       // Очистка данных клиента
       function clearClientData() {
         previewTab.innerHTML = `
           <div class="preview-controls" id="preview-controls" style="display: none;">
-            <button id="toggle-links" class="preview-toggle">Включить ссылки</button>
-            <span class="preview-info">Ссылки отключены для безопасности</span>
+            <button id="toggle-links" class="preview-toggle">Включить интерактивность</button>
+            <span class="preview-info">Интерактивность отключена для безопасности</span>
+            <select id="preview-mode" class="preview-mode-select">
+              <option value="static">Обычный режим</option>
+              <option value="iframe">Iframe режим (полная интерактивность)</option>
+            </select>
           </div>
           <div class="preview-tab">
             <div class="empty-state">
@@ -889,6 +1133,7 @@
         `;
         htmlContent.textContent = '';
         textContent.textContent = '';
+        currentClientData = null;
       }
       
       // Обновление кнопки паузы
@@ -1009,9 +1254,13 @@
       // Подключаемся к серверу при загрузке страницы
       connectToServer();
       
-      // Добавляем начальный обработчик для кнопки переключения ссылок
+      // Добавляем начальные обработчики событий
       if (toggleLinksBtn) {
-        toggleLinksBtn.addEventListener('click', toggleLinks);
+        toggleLinksBtn.addEventListener('click', toggleInteractivity);
+      }
+      
+      if (previewModeSelect) {
+        previewModeSelect.addEventListener('change', changePreviewMode);
       }
     });
   </script>
